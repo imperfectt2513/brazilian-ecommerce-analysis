@@ -1,0 +1,63 @@
+ecommerce_analysis.sql
+
+-- ================================================
+-- Ecommerce Sales Analysis
+-- Author: Dnyaneshwar Tate
+-- Database: ecommerce_project | dbo.master_table
+-- Period: September 2016 - August 2018
+-- ================================================
+
+
+-- Task 1: Total revenue by product category
+SELECT
+    category_english,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY revenue DESC;
+
+
+-- Task 2: Monthly order volume trend
+SELECT
+    FORMAT(order_purchase_timestamp, 'yyyy-MM') AS Monthlyord,
+    COUNT(DISTINCT order_id) AS total_orders
+FROM dbo.master_table
+GROUP BY FORMAT(order_purchase_timestamp, 'yyyy-MM')
+ORDER BY Monthlyord ASC;
+
+
+-- Task 3: Top 10 cities by total revenue
+SELECT TOP 10
+    customer_city,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY customer_city
+ORDER BY revenue DESC;
+
+
+-- Task 4: Average freight vs average price by category
+SELECT
+    category_english,
+    AVG(price) AS avg_price,
+    AVG(freight_value) AS avg_freight,
+    ROUND((AVG(freight_value) / AVG(price)) * 100, 2) AS freight_pct
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY freight_pct DESC;
+
+
+-- Task 5: Revenue share % by category
+WITH category_revenue AS (
+    SELECT
+        category_english,
+        SUM(total_payment) AS revenue
+    FROM dbo.master_table
+    GROUP BY category_english
+)
+SELECT
+    category_english,
+    revenue,
+    SUM(revenue) OVER() AS total_revenue,
+    ROUND(revenue / SUM(revenue) OVER() * 100, 2) AS revenue_share_pct
+FROM category_revenue
+ORDER BY revenue_share_pct DESC;
