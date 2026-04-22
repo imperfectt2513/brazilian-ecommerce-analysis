@@ -61,3 +61,2505 @@ SELECT
     ROUND(revenue / SUM(revenue) OVER() * 100, 2) AS revenue_share_pct
 FROM category_revenue
 ORDER BY revenue_share_pct DESC;
+
+
+
+-- Task 6:customer rank  and running total revenue
+WITH custrank AS (
+    SELECT
+        customer_id,
+        SUM(total_payment) AS total_spent
+    FROM master_table
+    GROUP BY customer_id
+)
+
+SELECT
+    customer_id,
+    total_spent,
+    DENSE_RANK() OVER (ORDER BY total_spent DESC) AS spending_rank,
+    SUM(total_spent) OVER (ORDER BY total_spent DESC) AS running_total
+FROM custrank;
+
+-- Task 7:Above Average Categories
+
+WITH avgcategory AS (
+    SELECT
+        category_english,
+        AVG(total_payment) AS avg_ord_val
+    FROM master_table
+    GROUP BY category_english
+)
+
+SELECT
+    category_english,
+    avg_ord_val,
+    (SELECT AVG(total_payment) FROM master_table) AS overall_avg
+FROM avgcategory
+WHERE avg_ord_val > (SELECT AVG(total_payment) FROM master_table)
+AND category_english IS NOT NULL
+ORDER BY avg_ord_val DESC;
+
+- - TASK 8 : Top 5 Cities By Revenue 
+WITH cityrev AS (
+    SELECT
+        customer_city,
+        SUM(total_payment) AS city_revenue
+    FROM master_table
+    GROUP BY customer_city
+)
+
+SELECT TOP 5
+   customer_city,
+    city_revenue,
+    (SELECT SUM(total_payment) FROM master_table) AS total_revenue,
+    ROUND(city_revenue * 100.0 / (SELECT SUM(total_payment) FROM master_table), 2) AS revenue_share_pct
+FROM cityrev
+ORDER BY city_revenue DESC;
+
+- - TASK 9 : Above State Average Spenders
+WITH customer_spent AS (
+    SELECT
+        customer_id,
+        customer_state,
+        SUM(total_payment) AS cust_total_spent
+    FROM master_table
+    GROUP BY customer_id, customer_state
+),
+state_avg AS (
+    SELECT
+        customer_state,
+        AVG(cust_total_spent) AS avg_state_spent
+    FROM customer_spent
+    GROUP BY customer_state
+)
+
+SELECT
+    cs.customer_id,
+    cs.customer_state,
+    cs.cust_total_spent,
+    sa.avg_state_spent
+FROM customer_spent cs
+INNER JOIN state_avg sa ON cs.customer_state = sa.customer_state
+WHERE cs.cust_total_spent > sa.avg_state_spent
+ORDER BY cs.customer_state, cs.cust_total_spent DESC;
+
+- - TASK 10 TO 3 customers per state 
+WITH customer_revenue AS (
+    SELECT 
+        c.customer_state,
+        c.customer_id,
+        SUM(p.payment_value) AS revenue
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN payments p ON o.order_id = p.order_id
+    GROUP BY c.customer_state, c.customer_id
+)
+
+SELECT *
+FROM (
+    SELECT 
+        customer_state,
+        customer_id,
+        revenue,
+        RANK() OVER (PARTITION BY customer_state ORDER BY revenue DESC) AS rank
+    FROM customer_revenue
+) ranked
+WHERE rank <= 3;
+
+- - TASK 11 Monthly growth % using windows function 
+WITH monthly AS (
+    SELECT 
+        CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120) AS month,
+        SUM(p.payment_value) AS revenue
+    FROM payments p
+    JOIN orders o 
+        ON p.order_id = o.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120)
+)
+
+SELECT 
+    month,
+    revenue,
+    LAG(revenue) OVER (ORDER BY month) AS prev_month_revenue,
+    ROUND(
+        (revenue - LAG(revenue) OVER (ORDER BY month)) * 100.0 
+        / LAG(revenue) OVER (ORDER BY month),
+    2) AS growth_pct
+FROM monthly
+ORDER BY month;
+- - TASK 12 Customer Segmentation 
+select o.customer_id,
+sum(p.payment_value) AS Customer_spent,
+CASE 
+WHEN sum(p.payment_value)>1000 THEN 'HIGH' 
+WHEN sum(p.payment_value) >500 THEN 'MEDIUM' 
+else 'LOW' 
+end AS    Segment 
+from Payments p 
+INNER JOIN Orders o ON p.order_id=o.order_id
+where order_status = 'delivered'
+group by o.customer_id 
+order by Customer_spent;
+
+- - TASK 13 Find month-over-month revenue growth and also identify which month had the highest growth
+ecommerce_analysis.sql
+
+-- ================================================
+-- Ecommerce Sales Analysis
+-- Author: Dnyaneshwar Tate
+-- Database: ecommerce_project | dbo.master_table
+-- Period: September 2016 - August 2018
+-- ================================================
+
+
+-- Task 1: Total revenue by product category
+SELECT
+    category_english,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY revenue DESC;
+
+
+-- Task 2: Monthly order volume trend
+SELECT
+    FORMAT(order_purchase_timestamp, 'yyyy-MM') AS Monthlyord,
+    COUNT(DISTINCT order_id) AS total_orders
+FROM dbo.master_table
+GROUP BY FORMAT(order_purchase_timestamp, 'yyyy-MM')
+ORDER BY Monthlyord ASC;
+
+
+-- Task 3: Top 10 cities by total revenue
+SELECT TOP 10
+    customer_city,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY customer_city
+ORDER BY revenue DESC;
+
+
+-- Task 4: Average freight vs average price by category
+SELECT
+    category_english,
+    AVG(price) AS avg_price,
+    AVG(freight_value) AS avg_freight,
+    ROUND((AVG(freight_value) / AVG(price)) * 100, 2) AS freight_pct
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY freight_pct DESC;
+
+
+-- Task 5: Revenue share % by category
+WITH category_revenue AS (
+    SELECT
+        category_english,
+        SUM(total_payment) AS revenue
+    FROM dbo.master_table
+    GROUP BY category_english
+)
+SELECT
+    category_english,
+    revenue,
+    SUM(revenue) OVER() AS total_revenue,
+    ROUND(revenue / SUM(revenue) OVER() * 100, 2) AS revenue_share_pct
+FROM category_revenue
+ORDER BY revenue_share_pct DESC;
+
+
+
+-- Task 6:customer rank  and running total revenue
+WITH custrank AS (
+    SELECT
+        customer_id,
+        SUM(total_payment) AS total_spent
+    FROM master_table
+    GROUP BY customer_id
+)
+
+SELECT
+    customer_id,
+    total_spent,
+    DENSE_RANK() OVER (ORDER BY total_spent DESC) AS spending_rank,
+    SUM(total_spent) OVER (ORDER BY total_spent DESC) AS running_total
+FROM custrank;
+
+-- Task 7:Above Average Categories
+
+WITH avgcategory AS (
+    SELECT
+        category_english,
+        AVG(total_payment) AS avg_ord_val
+    FROM master_table
+    GROUP BY category_english
+)
+
+SELECT
+    category_english,
+    avg_ord_val,
+    (SELECT AVG(total_payment) FROM master_table) AS overall_avg
+FROM avgcategory
+WHERE avg_ord_val > (SELECT AVG(total_payment) FROM master_table)
+AND category_english IS NOT NULL
+ORDER BY avg_ord_val DESC;
+
+- - TASK 8 : Top 5 Cities By Revenue 
+WITH cityrev AS (
+    SELECT
+        customer_city,
+        SUM(total_payment) AS city_revenue
+    FROM master_table
+    GROUP BY customer_city
+)
+
+SELECT TOP 5
+   customer_city,
+    city_revenue,
+    (SELECT SUM(total_payment) FROM master_table) AS total_revenue,
+    ROUND(city_revenue * 100.0 / (SELECT SUM(total_payment) FROM master_table), 2) AS revenue_share_pct
+FROM cityrev
+ORDER BY city_revenue DESC;
+
+- - TASK 9 : Above State Average Spenders
+WITH customer_spent AS (
+    SELECT
+        customer_id,
+        customer_state,
+        SUM(total_payment) AS cust_total_spent
+    FROM master_table
+    GROUP BY customer_id, customer_state
+),
+state_avg AS (
+    SELECT
+        customer_state,
+        AVG(cust_total_spent) AS avg_state_spent
+    FROM customer_spent
+    GROUP BY customer_state
+)
+
+SELECT
+    cs.customer_id,
+    cs.customer_state,
+    cs.cust_total_spent,
+    sa.avg_state_spent
+FROM customer_spent cs
+INNER JOIN state_avg sa ON cs.customer_state = sa.customer_state
+WHERE cs.cust_total_spent > sa.avg_state_spent
+ORDER BY cs.customer_state, cs.cust_total_spent DESC;
+
+- - TASK 10 TO 3 customers per state 
+WITH customer_revenue AS (
+    SELECT 
+        c.customer_state,
+        c.customer_id,
+        SUM(p.payment_value) AS revenue
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN payments p ON o.order_id = p.order_id
+    GROUP BY c.customer_state, c.customer_id
+)
+
+SELECT *
+FROM (
+    SELECT 
+        customer_state,
+        customer_id,
+        revenue,
+        RANK() OVER (PARTITION BY customer_state ORDER BY revenue DESC) AS rank
+    FROM customer_revenue
+) ranked
+WHERE rank <= 3;
+
+- - TASK 11 Monthly growth % using windows function 
+WITH monthly AS (
+    SELECT 
+        CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120) AS month,
+        SUM(p.payment_value) AS revenue
+    FROM payments p
+    JOIN orders o 
+        ON p.order_id = o.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120)
+)
+
+SELECT 
+    month,
+    revenue,
+    LAG(revenue) OVER (ORDER BY month) AS prev_month_revenue,
+    ROUND(
+        (revenue - LAG(revenue) OVER (ORDER BY month)) * 100.0 
+        / LAG(revenue) OVER (ORDER BY month),
+    2) AS growth_pct
+FROM monthly
+ORDER BY month;
+- - TASK 12 Customer Segmentation 
+select o.customer_id,
+sum(p.payment_value) AS Customer_spent,
+CASE 
+WHEN sum(p.payment_value)>1000 THEN 'HIGH' 
+WHEN sum(p.payment_value) >500 THEN 'MEDIUM' 
+else 'LOW' 
+end AS    Segment 
+from Payments p 
+INNER JOIN Orders o ON p.order_id=o.order_id
+where order_status = 'delivered'
+group by o.customer_id 
+order by Customer_spent;
+
+- - TASK 13 Find month-over-month revenue growth and also identify which month had the highest growth
+ecommerce_analysis.sql
+
+-- ================================================
+-- Ecommerce Sales Analysis
+-- Author: Dnyaneshwar Tate
+-- Database: ecommerce_project | dbo.master_table
+-- Period: September 2016 - August 2018
+-- ================================================
+
+
+-- Task 1: Total revenue by product category
+SELECT
+    category_english,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY revenue DESC;
+
+
+-- Task 2: Monthly order volume trend
+SELECT
+    FORMAT(order_purchase_timestamp, 'yyyy-MM') AS Monthlyord,
+    COUNT(DISTINCT order_id) AS total_orders
+FROM dbo.master_table
+GROUP BY FORMAT(order_purchase_timestamp, 'yyyy-MM')
+ORDER BY Monthlyord ASC;
+
+
+-- Task 3: Top 10 cities by total revenue
+SELECT TOP 10
+    customer_city,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY customer_city
+ORDER BY revenue DESC;
+
+
+-- Task 4: Average freight vs average price by category
+SELECT
+    category_english,
+    AVG(price) AS avg_price,
+    AVG(freight_value) AS avg_freight,
+    ROUND((AVG(freight_value) / AVG(price)) * 100, 2) AS freight_pct
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY freight_pct DESC;
+
+
+-- Task 5: Revenue share % by category
+WITH category_revenue AS (
+    SELECT
+        category_english,
+        SUM(total_payment) AS revenue
+    FROM dbo.master_table
+    GROUP BY category_english
+)
+SELECT
+    category_english,
+    revenue,
+    SUM(revenue) OVER() AS total_revenue,
+    ROUND(revenue / SUM(revenue) OVER() * 100, 2) AS revenue_share_pct
+FROM category_revenue
+ORDER BY revenue_share_pct DESC;
+
+
+
+-- Task 6:customer rank  and running total revenue
+WITH custrank AS (
+    SELECT
+        customer_id,
+        SUM(total_payment) AS total_spent
+    FROM master_table
+    GROUP BY customer_id
+)
+
+SELECT
+    customer_id,
+    total_spent,
+    DENSE_RANK() OVER (ORDER BY total_spent DESC) AS spending_rank,
+    SUM(total_spent) OVER (ORDER BY total_spent DESC) AS running_total
+FROM custrank;
+
+-- Task 7:Above Average Categories
+
+WITH avgcategory AS (
+    SELECT
+        category_english,
+        AVG(total_payment) AS avg_ord_val
+    FROM master_table
+    GROUP BY category_english
+)
+
+SELECT
+    category_english,
+    avg_ord_val,
+    (SELECT AVG(total_payment) FROM master_table) AS overall_avg
+FROM avgcategory
+WHERE avg_ord_val > (SELECT AVG(total_payment) FROM master_table)
+AND category_english IS NOT NULL
+ORDER BY avg_ord_val DESC;
+
+- - TASK 8 : Top 5 Cities By Revenue 
+WITH cityrev AS (
+    SELECT
+        customer_city,
+        SUM(total_payment) AS city_revenue
+    FROM master_table
+    GROUP BY customer_city
+)
+
+SELECT TOP 5
+   customer_city,
+    city_revenue,
+    (SELECT SUM(total_payment) FROM master_table) AS total_revenue,
+    ROUND(city_revenue * 100.0 / (SELECT SUM(total_payment) FROM master_table), 2) AS revenue_share_pct
+FROM cityrev
+ORDER BY city_revenue DESC;
+
+- - TASK 9 : Above State Average Spenders
+WITH customer_spent AS (
+    SELECT
+        customer_id,
+        customer_state,
+        SUM(total_payment) AS cust_total_spent
+    FROM master_table
+    GROUP BY customer_id, customer_state
+),
+state_avg AS (
+    SELECT
+        customer_state,
+        AVG(cust_total_spent) AS avg_state_spent
+    FROM customer_spent
+    GROUP BY customer_state
+)
+
+SELECT
+    cs.customer_id,
+    cs.customer_state,
+    cs.cust_total_spent,
+    sa.avg_state_spent
+FROM customer_spent cs
+INNER JOIN state_avg sa ON cs.customer_state = sa.customer_state
+WHERE cs.cust_total_spent > sa.avg_state_spent
+ORDER BY cs.customer_state, cs.cust_total_spent DESC;
+
+- - TASK 10 TO 3 customers per state 
+WITH customer_revenue AS (
+    SELECT 
+        c.customer_state,
+        c.customer_id,
+        SUM(p.payment_value) AS revenue
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN payments p ON o.order_id = p.order_id
+    GROUP BY c.customer_state, c.customer_id
+)
+
+SELECT *
+FROM (
+    SELECT 
+        customer_state,
+        customer_id,
+        revenue,
+        RANK() OVER (PARTITION BY customer_state ORDER BY revenue DESC) AS rank
+    FROM customer_revenue
+) ranked
+WHERE rank <= 3;
+
+- - TASK 11 Monthly growth % using windows function 
+WITH monthly AS (
+    SELECT 
+        CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120) AS month,
+        SUM(p.payment_value) AS revenue
+    FROM payments p
+    JOIN orders o 
+        ON p.order_id = o.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120)
+)
+
+SELECT 
+    month,
+    revenue,
+    LAG(revenue) OVER (ORDER BY month) AS prev_month_revenue,
+    ROUND(
+        (revenue - LAG(revenue) OVER (ORDER BY month)) * 100.0 
+        / LAG(revenue) OVER (ORDER BY month),
+    2) AS growth_pct
+FROM monthly
+ORDER BY month;
+- - TASK 12 Customer Segmentation 
+select o.customer_id,
+sum(p.payment_value) AS Customer_spent,
+CASE 
+WHEN sum(p.payment_value)>1000 THEN 'HIGH' 
+WHEN sum(p.payment_value) >500 THEN 'MEDIUM' 
+else 'LOW' 
+end AS    Segment 
+from Payments p 
+INNER JOIN Orders o ON p.order_id=o.order_id
+where order_status = 'delivered'
+group by o.customer_id 
+order by Customer_spent;
+
+- - TASK 13 Find month-over-month revenue growth and also identify which month had the highest growth
+
+
+
+
+ecommerce_analysis.sql
+
+-- ================================================
+-- Ecommerce Sales Analysis
+-- Author: Dnyaneshwar Tate
+-- Database: ecommerce_project | dbo.master_table
+-- Period: September 2016 - August 2018
+-- ================================================
+
+
+-- Task 1: Total revenue by product category
+SELECT
+    category_english,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY revenue DESC;
+
+
+-- Task 2: Monthly order volume trend
+SELECT
+    FORMAT(order_purchase_timestamp, 'yyyy-MM') AS Monthlyord,
+    COUNT(DISTINCT order_id) AS total_orders
+FROM dbo.master_table
+GROUP BY FORMAT(order_purchase_timestamp, 'yyyy-MM')
+ORDER BY Monthlyord ASC;
+
+
+-- Task 3: Top 10 cities by total revenue
+SELECT TOP 10
+    customer_city,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY customer_city
+ORDER BY revenue DESC;
+
+
+-- Task 4: Average freight vs average price by category
+SELECT
+    category_english,
+    AVG(price) AS avg_price,
+    AVG(freight_value) AS avg_freight,
+    ROUND((AVG(freight_value) / AVG(price)) * 100, 2) AS freight_pct
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY freight_pct DESC;
+
+
+-- Task 5: Revenue share % by category
+WITH category_revenue AS (
+    SELECT
+        category_english,
+        SUM(total_payment) AS revenue
+    FROM dbo.master_table
+    GROUP BY category_english
+)
+SELECT
+    category_english,
+    revenue,
+    SUM(revenue) OVER() AS total_revenue,
+    ROUND(revenue / SUM(revenue) OVER() * 100, 2) AS revenue_share_pct
+FROM category_revenue
+ORDER BY revenue_share_pct DESC;
+
+
+
+-- Task 6:customer rank  and running total revenue
+WITH custrank AS (
+    SELECT
+        customer_id,
+        SUM(total_payment) AS total_spent
+    FROM master_table
+    GROUP BY customer_id
+)
+
+SELECT
+    customer_id,
+    total_spent,
+    DENSE_RANK() OVER (ORDER BY total_spent DESC) AS spending_rank,
+    SUM(total_spent) OVER (ORDER BY total_spent DESC) AS running_total
+FROM custrank;
+
+-- Task 7:Above Average Categories
+
+WITH avgcategory AS (
+    SELECT
+        category_english,
+        AVG(total_payment) AS avg_ord_val
+    FROM master_table
+    GROUP BY category_english
+)
+
+SELECT
+    category_english,
+    avg_ord_val,
+    (SELECT AVG(total_payment) FROM master_table) AS overall_avg
+FROM avgcategory
+WHERE avg_ord_val > (SELECT AVG(total_payment) FROM master_table)
+AND category_english IS NOT NULL
+ORDER BY avg_ord_val DESC;
+
+- - TASK 8 : Top 5 Cities By Revenue 
+WITH cityrev AS (
+    SELECT
+        customer_city,
+        SUM(total_payment) AS city_revenue
+    FROM master_table
+    GROUP BY customer_city
+)
+
+SELECT TOP 5
+   customer_city,
+    city_revenue,
+    (SELECT SUM(total_payment) FROM master_table) AS total_revenue,
+    ROUND(city_revenue * 100.0 / (SELECT SUM(total_payment) FROM master_table), 2) AS revenue_share_pct
+FROM cityrev
+ORDER BY city_revenue DESC;
+
+- - TASK 9 : Above State Average Spenders
+WITH customer_spent AS (
+    SELECT
+        customer_id,
+        customer_state,
+        SUM(total_payment) AS cust_total_spent
+    FROM master_table
+    GROUP BY customer_id, customer_state
+),
+state_avg AS (
+    SELECT
+        customer_state,
+        AVG(cust_total_spent) AS avg_state_spent
+    FROM customer_spent
+    GROUP BY customer_state
+)
+
+SELECT
+    cs.customer_id,
+    cs.customer_state,
+    cs.cust_total_spent,
+    sa.avg_state_spent
+FROM customer_spent cs
+INNER JOIN state_avg sa ON cs.customer_state = sa.customer_state
+WHERE cs.cust_total_spent > sa.avg_state_spent
+ORDER BY cs.customer_state, cs.cust_total_spent DESC;
+
+- - TASK 10 TO 3 customers per state 
+WITH customer_revenue AS (
+    SELECT 
+        c.customer_state,
+        c.customer_id,
+        SUM(p.payment_value) AS revenue
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN payments p ON o.order_id = p.order_id
+    GROUP BY c.customer_state, c.customer_id
+)
+
+SELECT *
+FROM (
+    SELECT 
+        customer_state,
+        customer_id,
+        revenue,
+        RANK() OVER (PARTITION BY customer_state ORDER BY revenue DESC) AS rank
+    FROM customer_revenue
+) ranked
+WHERE rank <= 3;
+
+- - TASK 11 Monthly growth % using windows function 
+WITH monthly AS (
+    SELECT 
+        CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120) AS month,
+        SUM(p.payment_value) AS revenue
+    FROM payments p
+    JOIN orders o 
+        ON p.order_id = o.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120)
+)
+
+SELECT 
+    month,
+    revenue,
+    LAG(revenue) OVER (ORDER BY month) AS prev_month_revenue,
+    ROUND(
+        (revenue - LAG(revenue) OVER (ORDER BY month)) * 100.0 
+        / LAG(revenue) OVER (ORDER BY month),
+    2) AS growth_pct
+FROM monthly
+ORDER BY month;
+- - TASK 12 Customer Segmentation 
+select o.customer_id,
+sum(p.payment_value) AS Customer_spent,
+CASE 
+WHEN sum(p.payment_value)>1000 THEN 'HIGH' 
+WHEN sum(p.payment_value) >500 THEN 'MEDIUM' 
+else 'LOW' 
+end AS    Segment 
+from Payments p 
+INNER JOIN Orders o ON p.order_id=o.order_id
+where order_status = 'delivered'
+group by o.customer_id 
+order by Customer_spent;
+
+- - TASK 13 Find month-over-month revenue growth and also identify which month had the highest growth
+ecommerce_analysis.sql
+
+-- ================================================
+-- Ecommerce Sales Analysis
+-- Author: Dnyaneshwar Tate
+-- Database: ecommerce_project | dbo.master_table
+-- Period: September 2016 - August 2018
+-- ================================================
+
+
+-- Task 1: Total revenue by product category
+SELECT
+    category_english,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY revenue DESC;
+
+
+-- Task 2: Monthly order volume trend
+SELECT
+    FORMAT(order_purchase_timestamp, 'yyyy-MM') AS Monthlyord,
+    COUNT(DISTINCT order_id) AS total_orders
+FROM dbo.master_table
+GROUP BY FORMAT(order_purchase_timestamp, 'yyyy-MM')
+ORDER BY Monthlyord ASC;
+
+
+-- Task 3: Top 10 cities by total revenue
+SELECT TOP 10
+    customer_city,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY customer_city
+ORDER BY revenue DESC;
+
+
+-- Task 4: Average freight vs average price by category
+SELECT
+    category_english,
+    AVG(price) AS avg_price,
+    AVG(freight_value) AS avg_freight,
+    ROUND((AVG(freight_value) / AVG(price)) * 100, 2) AS freight_pct
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY freight_pct DESC;
+
+
+-- Task 5: Revenue share % by category
+WITH category_revenue AS (
+    SELECT
+        category_english,
+        SUM(total_payment) AS revenue
+    FROM dbo.master_table
+    GROUP BY category_english
+)
+SELECT
+    category_english,
+    revenue,
+    SUM(revenue) OVER() AS total_revenue,
+    ROUND(revenue / SUM(revenue) OVER() * 100, 2) AS revenue_share_pct
+FROM category_revenue
+ORDER BY revenue_share_pct DESC;
+
+
+
+-- Task 6:customer rank  and running total revenue
+WITH custrank AS (
+    SELECT
+        customer_id,
+        SUM(total_payment) AS total_spent
+    FROM master_table
+    GROUP BY customer_id
+)
+
+SELECT
+    customer_id,
+    total_spent,
+    DENSE_RANK() OVER (ORDER BY total_spent DESC) AS spending_rank,
+    SUM(total_spent) OVER (ORDER BY total_spent DESC) AS running_total
+FROM custrank;
+
+-- Task 7:Above Average Categories
+
+WITH avgcategory AS (
+    SELECT
+        category_english,
+        AVG(total_payment) AS avg_ord_val
+    FROM master_table
+    GROUP BY category_english
+)
+
+SELECT
+    category_english,
+    avg_ord_val,
+    (SELECT AVG(total_payment) FROM master_table) AS overall_avg
+FROM avgcategory
+WHERE avg_ord_val > (SELECT AVG(total_payment) FROM master_table)
+AND category_english IS NOT NULL
+ORDER BY avg_ord_val DESC;
+
+- - TASK 8 : Top 5 Cities By Revenue 
+WITH cityrev AS (
+    SELECT
+        customer_city,
+        SUM(total_payment) AS city_revenue
+    FROM master_table
+    GROUP BY customer_city
+)
+
+SELECT TOP 5
+   customer_city,
+    city_revenue,
+    (SELECT SUM(total_payment) FROM master_table) AS total_revenue,
+    ROUND(city_revenue * 100.0 / (SELECT SUM(total_payment) FROM master_table), 2) AS revenue_share_pct
+FROM cityrev
+ORDER BY city_revenue DESC;
+
+- - TASK 9 : Above State Average Spenders
+WITH customer_spent AS (
+    SELECT
+        customer_id,
+        customer_state,
+        SUM(total_payment) AS cust_total_spent
+    FROM master_table
+    GROUP BY customer_id, customer_state
+),
+state_avg AS (
+    SELECT
+        customer_state,
+        AVG(cust_total_spent) AS avg_state_spent
+    FROM customer_spent
+    GROUP BY customer_state
+)
+
+SELECT
+    cs.customer_id,
+    cs.customer_state,
+    cs.cust_total_spent,
+    sa.avg_state_spent
+FROM customer_spent cs
+INNER JOIN state_avg sa ON cs.customer_state = sa.customer_state
+WHERE cs.cust_total_spent > sa.avg_state_spent
+ORDER BY cs.customer_state, cs.cust_total_spent DESC;
+
+- - TASK 10 TO 3 customers per state 
+WITH customer_revenue AS (
+    SELECT 
+        c.customer_state,
+        c.customer_id,
+        SUM(p.payment_value) AS revenue
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN payments p ON o.order_id = p.order_id
+    GROUP BY c.customer_state, c.customer_id
+)
+
+SELECT *
+FROM (
+    SELECT 
+        customer_state,
+        customer_id,
+        revenue,
+        RANK() OVER (PARTITION BY customer_state ORDER BY revenue DESC) AS rank
+    FROM customer_revenue
+) ranked
+WHERE rank <= 3;
+
+- - TASK 11 Monthly growth % using windows function 
+WITH monthly AS (
+    SELECT 
+        CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120) AS month,
+        SUM(p.payment_value) AS revenue
+    FROM payments p
+    JOIN orders o 
+        ON p.order_id = o.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120)
+)
+
+SELECT 
+    month,
+    revenue,
+    LAG(revenue) OVER (ORDER BY month) AS prev_month_revenue,
+    ROUND(
+        (revenue - LAG(revenue) OVER (ORDER BY month)) * 100.0 
+        / LAG(revenue) OVER (ORDER BY month),
+    2) AS growth_pct
+FROM monthly
+ORDER BY month;
+- - TASK 12 Customer Segmentation 
+select o.customer_id,
+sum(p.payment_value) AS Customer_spent,
+CASE 
+WHEN sum(p.payment_value)>1000 THEN 'HIGH' 
+WHEN sum(p.payment_value) >500 THEN 'MEDIUM' 
+else 'LOW' 
+end AS    Segment 
+from Payments p 
+INNER JOIN Orders o ON p.order_id=o.order_id
+where order_status = 'delivered'
+group by o.customer_id 
+order by Customer_spent;
+
+- - TASK 13 Find month-over-month revenue growth and also identify which month had the highest growth
+ecommerce_analysis.sql
+
+-- ================================================
+-- Ecommerce Sales Analysis
+-- Author: Dnyaneshwar Tate
+-- Database: ecommerce_project | dbo.master_table
+-- Period: September 2016 - August 2018
+-- ================================================
+
+
+-- Task 1: Total revenue by product category
+SELECT
+    category_english,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY revenue DESC;
+
+
+-- Task 2: Monthly order volume trend
+SELECT
+    FORMAT(order_purchase_timestamp, 'yyyy-MM') AS Monthlyord,
+    COUNT(DISTINCT order_id) AS total_orders
+FROM dbo.master_table
+GROUP BY FORMAT(order_purchase_timestamp, 'yyyy-MM')
+ORDER BY Monthlyord ASC;
+
+
+-- Task 3: Top 10 cities by total revenue
+SELECT TOP 10
+    customer_city,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY customer_city
+ORDER BY revenue DESC;
+
+
+-- Task 4: Average freight vs average price by category
+SELECT
+    category_english,
+    AVG(price) AS avg_price,
+    AVG(freight_value) AS avg_freight,
+    ROUND((AVG(freight_value) / AVG(price)) * 100, 2) AS freight_pct
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY freight_pct DESC;
+
+
+-- Task 5: Revenue share % by category
+WITH category_revenue AS (
+    SELECT
+        category_english,
+        SUM(total_payment) AS revenue
+    FROM dbo.master_table
+    GROUP BY category_english
+)
+SELECT
+    category_english,
+    revenue,
+    SUM(revenue) OVER() AS total_revenue,
+    ROUND(revenue / SUM(revenue) OVER() * 100, 2) AS revenue_share_pct
+FROM category_revenue
+ORDER BY revenue_share_pct DESC;
+
+
+
+-- Task 6:customer rank  and running total revenue
+WITH custrank AS (
+    SELECT
+        customer_id,
+        SUM(total_payment) AS total_spent
+    FROM master_table
+    GROUP BY customer_id
+)
+
+SELECT
+    customer_id,
+    total_spent,
+    DENSE_RANK() OVER (ORDER BY total_spent DESC) AS spending_rank,
+    SUM(total_spent) OVER (ORDER BY total_spent DESC) AS running_total
+FROM custrank;
+
+-- Task 7:Above Average Categories
+
+WITH avgcategory AS (
+    SELECT
+        category_english,
+        AVG(total_payment) AS avg_ord_val
+    FROM master_table
+    GROUP BY category_english
+)
+
+SELECT
+    category_english,
+    avg_ord_val,
+    (SELECT AVG(total_payment) FROM master_table) AS overall_avg
+FROM avgcategory
+WHERE avg_ord_val > (SELECT AVG(total_payment) FROM master_table)
+AND category_english IS NOT NULL
+ORDER BY avg_ord_val DESC;
+
+- - TASK 8 : Top 5 Cities By Revenue 
+WITH cityrev AS (
+    SELECT
+        customer_city,
+        SUM(total_payment) AS city_revenue
+    FROM master_table
+    GROUP BY customer_city
+)
+
+SELECT TOP 5
+   customer_city,
+    city_revenue,
+    (SELECT SUM(total_payment) FROM master_table) AS total_revenue,
+    ROUND(city_revenue * 100.0 / (SELECT SUM(total_payment) FROM master_table), 2) AS revenue_share_pct
+FROM cityrev
+ORDER BY city_revenue DESC;
+
+- - TASK 9 : Above State Average Spenders
+WITH customer_spent AS (
+    SELECT
+        customer_id,
+        customer_state,
+        SUM(total_payment) AS cust_total_spent
+    FROM master_table
+    GROUP BY customer_id, customer_state
+),
+state_avg AS (
+    SELECT
+        customer_state,
+        AVG(cust_total_spent) AS avg_state_spent
+    FROM customer_spent
+    GROUP BY customer_state
+)
+
+SELECT
+    cs.customer_id,
+    cs.customer_state,
+    cs.cust_total_spent,
+    sa.avg_state_spent
+FROM customer_spent cs
+INNER JOIN state_avg sa ON cs.customer_state = sa.customer_state
+WHERE cs.cust_total_spent > sa.avg_state_spent
+ORDER BY cs.customer_state, cs.cust_total_spent DESC;
+
+- - TASK 10 TO 3 customers per state 
+WITH customer_revenue AS (
+    SELECT 
+        c.customer_state,
+        c.customer_id,
+        SUM(p.payment_value) AS revenue
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN payments p ON o.order_id = p.order_id
+    GROUP BY c.customer_state, c.customer_id
+)
+
+SELECT *
+FROM (
+    SELECT 
+        customer_state,
+        customer_id,
+        revenue,
+        RANK() OVER (PARTITION BY customer_state ORDER BY revenue DESC) AS rank
+    FROM customer_revenue
+) ranked
+WHERE rank <= 3;
+
+- - TASK 11 Monthly growth % using windows function 
+WITH monthly AS (
+    SELECT 
+        CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120) AS month,
+        SUM(p.payment_value) AS revenue
+    FROM payments p
+    JOIN orders o 
+        ON p.order_id = o.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120)
+)
+
+SELECT 
+    month,
+    revenue,
+    LAG(revenue) OVER (ORDER BY month) AS prev_month_revenue,
+    ROUND(
+        (revenue - LAG(revenue) OVER (ORDER BY month)) * 100.0 
+        / LAG(revenue) OVER (ORDER BY month),
+    2) AS growth_pct
+FROM monthly
+ORDER BY month;
+- - TASK 12 Customer Segmentation 
+select o.customer_id,
+sum(p.payment_value) AS Customer_spent,
+CASE 
+WHEN sum(p.payment_value)>1000 THEN 'HIGH' 
+WHEN sum(p.payment_value) >500 THEN 'MEDIUM' 
+else 'LOW' 
+end AS    Segment 
+from Payments p 
+INNER JOIN Orders o ON p.order_id=o.order_id
+where order_status = 'delivered'
+group by o.customer_id 
+order by Customer_spent;
+
+- - TASK 13 Find month-over-month revenue growth and also identify which month had the highest growth
+
+ecommerce_analysis.sql
+
+-- ================================================
+-- Ecommerce Sales Analysis
+-- Author: Dnyaneshwar Tate
+-- Database: ecommerce_project | dbo.master_table
+-- Period: September 2016 - August 2018
+-- ================================================
+
+
+-- Task 1: Total revenue by product category
+SELECT
+    category_english,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY revenue DESC;
+
+
+-- Task 2: Monthly order volume trend
+SELECT
+    FORMAT(order_purchase_timestamp, 'yyyy-MM') AS Monthlyord,
+    COUNT(DISTINCT order_id) AS total_orders
+FROM dbo.master_table
+GROUP BY FORMAT(order_purchase_timestamp, 'yyyy-MM')
+ORDER BY Monthlyord ASC;
+
+
+-- Task 3: Top 10 cities by total revenue
+SELECT TOP 10
+    customer_city,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY customer_city
+ORDER BY revenue DESC;
+
+
+-- Task 4: Average freight vs average price by category
+SELECT
+    category_english,
+    AVG(price) AS avg_price,
+    AVG(freight_value) AS avg_freight,
+    ROUND((AVG(freight_value) / AVG(price)) * 100, 2) AS freight_pct
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY freight_pct DESC;
+
+
+-- Task 5: Revenue share % by category
+WITH category_revenue AS (
+    SELECT
+        category_english,
+        SUM(total_payment) AS revenue
+    FROM dbo.master_table
+    GROUP BY category_english
+)
+SELECT
+    category_english,
+    revenue,
+    SUM(revenue) OVER() AS total_revenue,
+    ROUND(revenue / SUM(revenue) OVER() * 100, 2) AS revenue_share_pct
+FROM category_revenue
+ORDER BY revenue_share_pct DESC;
+
+
+
+-- Task 6:customer rank  and running total revenue
+WITH custrank AS (
+    SELECT
+        customer_id,
+        SUM(total_payment) AS total_spent
+    FROM master_table
+    GROUP BY customer_id
+)
+
+SELECT
+    customer_id,
+    total_spent,
+    DENSE_RANK() OVER (ORDER BY total_spent DESC) AS spending_rank,
+    SUM(total_spent) OVER (ORDER BY total_spent DESC) AS running_total
+FROM custrank;
+
+-- Task 7:Above Average Categories
+
+WITH avgcategory AS (
+    SELECT
+        category_english,
+        AVG(total_payment) AS avg_ord_val
+    FROM master_table
+    GROUP BY category_english
+)
+
+SELECT
+    category_english,
+    avg_ord_val,
+    (SELECT AVG(total_payment) FROM master_table) AS overall_avg
+FROM avgcategory
+WHERE avg_ord_val > (SELECT AVG(total_payment) FROM master_table)
+AND category_english IS NOT NULL
+ORDER BY avg_ord_val DESC;
+
+- - TASK 8 : Top 5 Cities By Revenue 
+WITH cityrev AS (
+    SELECT
+        customer_city,
+        SUM(total_payment) AS city_revenue
+    FROM master_table
+    GROUP BY customer_city
+)
+
+SELECT TOP 5
+   customer_city,
+    city_revenue,
+    (SELECT SUM(total_payment) FROM master_table) AS total_revenue,
+    ROUND(city_revenue * 100.0 / (SELECT SUM(total_payment) FROM master_table), 2) AS revenue_share_pct
+FROM cityrev
+ORDER BY city_revenue DESC;
+
+- - TASK 9 : Above State Average Spenders
+WITH customer_spent AS (
+    SELECT
+        customer_id,
+        customer_state,
+        SUM(total_payment) AS cust_total_spent
+    FROM master_table
+    GROUP BY customer_id, customer_state
+),
+state_avg AS (
+    SELECT
+        customer_state,
+        AVG(cust_total_spent) AS avg_state_spent
+    FROM customer_spent
+    GROUP BY customer_state
+)
+
+SELECT
+    cs.customer_id,
+    cs.customer_state,
+    cs.cust_total_spent,
+    sa.avg_state_spent
+FROM customer_spent cs
+INNER JOIN state_avg sa ON cs.customer_state = sa.customer_state
+WHERE cs.cust_total_spent > sa.avg_state_spent
+ORDER BY cs.customer_state, cs.cust_total_spent DESC;
+
+- - TASK 10 TO 3 customers per state 
+WITH customer_revenue AS (
+    SELECT 
+        c.customer_state,
+        c.customer_id,
+        SUM(p.payment_value) AS revenue
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN payments p ON o.order_id = p.order_id
+    GROUP BY c.customer_state, c.customer_id
+)
+
+SELECT *
+FROM (
+    SELECT 
+        customer_state,
+        customer_id,
+        revenue,
+        RANK() OVER (PARTITION BY customer_state ORDER BY revenue DESC) AS rank
+    FROM customer_revenue
+) ranked
+WHERE rank <= 3;
+
+- - TASK 11 Monthly growth % using windows function 
+WITH monthly AS (
+    SELECT 
+        CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120) AS month,
+        SUM(p.payment_value) AS revenue
+    FROM payments p
+    JOIN orders o 
+        ON p.order_id = o.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120)
+)
+
+SELECT 
+    month,
+    revenue,
+    LAG(revenue) OVER (ORDER BY month) AS prev_month_revenue,
+    ROUND(
+        (revenue - LAG(revenue) OVER (ORDER BY month)) * 100.0 
+        / LAG(revenue) OVER (ORDER BY month),
+    2) AS growth_pct
+FROM monthly
+ORDER BY month;
+- - TASK 12 Customer Segmentation 
+select o.customer_id,
+sum(p.payment_value) AS Customer_spent,
+CASE 
+WHEN sum(p.payment_value)>1000 THEN 'HIGH' 
+WHEN sum(p.payment_value) >500 THEN 'MEDIUM' 
+else 'LOW' 
+end AS    Segment 
+from Payments p 
+INNER JOIN Orders o ON p.order_id=o.order_id
+where order_status = 'delivered'
+group by o.customer_id 
+order by Customer_spent;
+
+- - TASK 13 Find month-over-month revenue growth and also identify which month had the highest growth
+ecommerce_analysis.sql
+
+-- ================================================
+-- Ecommerce Sales Analysis
+-- Author: Dnyaneshwar Tate
+-- Database: ecommerce_project | dbo.master_table
+-- Period: September 2016 - August 2018
+-- ================================================
+
+
+-- Task 1: Total revenue by product category
+SELECT
+    category_english,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY revenue DESC;
+
+
+-- Task 2: Monthly order volume trend
+SELECT
+    FORMAT(order_purchase_timestamp, 'yyyy-MM') AS Monthlyord,
+    COUNT(DISTINCT order_id) AS total_orders
+FROM dbo.master_table
+GROUP BY FORMAT(order_purchase_timestamp, 'yyyy-MM')
+ORDER BY Monthlyord ASC;
+
+
+-- Task 3: Top 10 cities by total revenue
+SELECT TOP 10
+    customer_city,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY customer_city
+ORDER BY revenue DESC;
+
+
+-- Task 4: Average freight vs average price by category
+SELECT
+    category_english,
+    AVG(price) AS avg_price,
+    AVG(freight_value) AS avg_freight,
+    ROUND((AVG(freight_value) / AVG(price)) * 100, 2) AS freight_pct
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY freight_pct DESC;
+
+
+-- Task 5: Revenue share % by category
+WITH category_revenue AS (
+    SELECT
+        category_english,
+        SUM(total_payment) AS revenue
+    FROM dbo.master_table
+    GROUP BY category_english
+)
+SELECT
+    category_english,
+    revenue,
+    SUM(revenue) OVER() AS total_revenue,
+    ROUND(revenue / SUM(revenue) OVER() * 100, 2) AS revenue_share_pct
+FROM category_revenue
+ORDER BY revenue_share_pct DESC;
+
+
+
+-- Task 6:customer rank  and running total revenue
+WITH custrank AS (
+    SELECT
+        customer_id,
+        SUM(total_payment) AS total_spent
+    FROM master_table
+    GROUP BY customer_id
+)
+
+SELECT
+    customer_id,
+    total_spent,
+    DENSE_RANK() OVER (ORDER BY total_spent DESC) AS spending_rank,
+    SUM(total_spent) OVER (ORDER BY total_spent DESC) AS running_total
+FROM custrank;
+
+-- Task 7:Above Average Categories
+
+WITH avgcategory AS (
+    SELECT
+        category_english,
+        AVG(total_payment) AS avg_ord_val
+    FROM master_table
+    GROUP BY category_english
+)
+
+SELECT
+    category_english,
+    avg_ord_val,
+    (SELECT AVG(total_payment) FROM master_table) AS overall_avg
+FROM avgcategory
+WHERE avg_ord_val > (SELECT AVG(total_payment) FROM master_table)
+AND category_english IS NOT NULL
+ORDER BY avg_ord_val DESC;
+
+- - TASK 8 : Top 5 Cities By Revenue 
+WITH cityrev AS (
+    SELECT
+        customer_city,
+        SUM(total_payment) AS city_revenue
+    FROM master_table
+    GROUP BY customer_city
+)
+
+SELECT TOP 5
+   customer_city,
+    city_revenue,
+    (SELECT SUM(total_payment) FROM master_table) AS total_revenue,
+    ROUND(city_revenue * 100.0 / (SELECT SUM(total_payment) FROM master_table), 2) AS revenue_share_pct
+FROM cityrev
+ORDER BY city_revenue DESC;
+
+- - TASK 9 : Above State Average Spenders
+WITH customer_spent AS (
+    SELECT
+        customer_id,
+        customer_state,
+        SUM(total_payment) AS cust_total_spent
+    FROM master_table
+    GROUP BY customer_id, customer_state
+),
+state_avg AS (
+    SELECT
+        customer_state,
+        AVG(cust_total_spent) AS avg_state_spent
+    FROM customer_spent
+    GROUP BY customer_state
+)
+
+SELECT
+    cs.customer_id,
+    cs.customer_state,
+    cs.cust_total_spent,
+    sa.avg_state_spent
+FROM customer_spent cs
+INNER JOIN state_avg sa ON cs.customer_state = sa.customer_state
+WHERE cs.cust_total_spent > sa.avg_state_spent
+ORDER BY cs.customer_state, cs.cust_total_spent DESC;
+
+- - TASK 10 TO 3 customers per state 
+WITH customer_revenue AS (
+    SELECT 
+        c.customer_state,
+        c.customer_id,
+        SUM(p.payment_value) AS revenue
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN payments p ON o.order_id = p.order_id
+    GROUP BY c.customer_state, c.customer_id
+)
+
+SELECT *
+FROM (
+    SELECT 
+        customer_state,
+        customer_id,
+        revenue,
+        RANK() OVER (PARTITION BY customer_state ORDER BY revenue DESC) AS rank
+    FROM customer_revenue
+) ranked
+WHERE rank <= 3;
+
+- - TASK 11 Monthly growth % using windows function 
+WITH monthly AS (
+    SELECT 
+        CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120) AS month,
+        SUM(p.payment_value) AS revenue
+    FROM payments p
+    JOIN orders o 
+        ON p.order_id = o.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120)
+)
+
+SELECT 
+    month,
+    revenue,
+    LAG(revenue) OVER (ORDER BY month) AS prev_month_revenue,
+    ROUND(
+        (revenue - LAG(revenue) OVER (ORDER BY month)) * 100.0 
+        / LAG(revenue) OVER (ORDER BY month),
+    2) AS growth_pct
+FROM monthly
+ORDER BY month;
+- - TASK 12 Customer Segmentation 
+select o.customer_id,
+sum(p.payment_value) AS Customer_spent,
+CASE 
+WHEN sum(p.payment_value)>1000 THEN 'HIGH' 
+WHEN sum(p.payment_value) >500 THEN 'MEDIUM' 
+else 'LOW' 
+end AS    Segment 
+from Payments p 
+INNER JOIN Orders o ON p.order_id=o.order_id
+where order_status = 'delivered'
+group by o.customer_id 
+order by Customer_spent;
+
+- - TASK 13 Find month-over-month revenue growth and also identify which month had the highest growth
+ecommerce_analysis.sql
+
+-- ================================================
+-- Ecommerce Sales Analysis
+-- Author: Dnyaneshwar Tate
+-- Database: ecommerce_project | dbo.master_table
+-- Period: September 2016 - August 2018
+-- ================================================
+
+
+-- Task 1: Total revenue by product category
+SELECT
+    category_english,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY revenue DESC;
+
+
+-- Task 2: Monthly order volume trend
+SELECT
+    FORMAT(order_purchase_timestamp, 'yyyy-MM') AS Monthlyord,
+    COUNT(DISTINCT order_id) AS total_orders
+FROM dbo.master_table
+GROUP BY FORMAT(order_purchase_timestamp, 'yyyy-MM')
+ORDER BY Monthlyord ASC;
+
+
+-- Task 3: Top 10 cities by total revenue
+SELECT TOP 10
+    customer_city,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY customer_city
+ORDER BY revenue DESC;
+
+
+-- Task 4: Average freight vs average price by category
+SELECT
+    category_english,
+    AVG(price) AS avg_price,
+    AVG(freight_value) AS avg_freight,
+    ROUND((AVG(freight_value) / AVG(price)) * 100, 2) AS freight_pct
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY freight_pct DESC;
+
+
+-- Task 5: Revenue share % by category
+WITH category_revenue AS (
+    SELECT
+        category_english,
+        SUM(total_payment) AS revenue
+    FROM dbo.master_table
+    GROUP BY category_english
+)
+SELECT
+    category_english,
+    revenue,
+    SUM(revenue) OVER() AS total_revenue,
+    ROUND(revenue / SUM(revenue) OVER() * 100, 2) AS revenue_share_pct
+FROM category_revenue
+ORDER BY revenue_share_pct DESC;
+
+
+
+-- Task 6:customer rank  and running total revenue
+WITH custrank AS (
+    SELECT
+        customer_id,
+        SUM(total_payment) AS total_spent
+    FROM master_table
+    GROUP BY customer_id
+)
+
+SELECT
+    customer_id,
+    total_spent,
+    DENSE_RANK() OVER (ORDER BY total_spent DESC) AS spending_rank,
+    SUM(total_spent) OVER (ORDER BY total_spent DESC) AS running_total
+FROM custrank;
+
+-- Task 7:Above Average Categories
+
+WITH avgcategory AS (
+    SELECT
+        category_english,
+        AVG(total_payment) AS avg_ord_val
+    FROM master_table
+    GROUP BY category_english
+)
+
+SELECT
+    category_english,
+    avg_ord_val,
+    (SELECT AVG(total_payment) FROM master_table) AS overall_avg
+FROM avgcategory
+WHERE avg_ord_val > (SELECT AVG(total_payment) FROM master_table)
+AND category_english IS NOT NULL
+ORDER BY avg_ord_val DESC;
+
+- - TASK 8 : Top 5 Cities By Revenue 
+WITH cityrev AS (
+    SELECT
+        customer_city,
+        SUM(total_payment) AS city_revenue
+    FROM master_table
+    GROUP BY customer_city
+)
+
+SELECT TOP 5
+   customer_city,
+    city_revenue,
+    (SELECT SUM(total_payment) FROM master_table) AS total_revenue,
+    ROUND(city_revenue * 100.0 / (SELECT SUM(total_payment) FROM master_table), 2) AS revenue_share_pct
+FROM cityrev
+ORDER BY city_revenue DESC;
+
+- - TASK 9 : Above State Average Spenders
+WITH customer_spent AS (
+    SELECT
+        customer_id,
+        customer_state,
+        SUM(total_payment) AS cust_total_spent
+    FROM master_table
+    GROUP BY customer_id, customer_state
+),
+state_avg AS (
+    SELECT
+        customer_state,
+        AVG(cust_total_spent) AS avg_state_spent
+    FROM customer_spent
+    GROUP BY customer_state
+)
+
+SELECT
+    cs.customer_id,
+    cs.customer_state,
+    cs.cust_total_spent,
+    sa.avg_state_spent
+FROM customer_spent cs
+INNER JOIN state_avg sa ON cs.customer_state = sa.customer_state
+WHERE cs.cust_total_spent > sa.avg_state_spent
+ORDER BY cs.customer_state, cs.cust_total_spent DESC;
+
+- - TASK 10 TO 3 customers per state 
+WITH customer_revenue AS (
+    SELECT 
+        c.customer_state,
+        c.customer_id,
+        SUM(p.payment_value) AS revenue
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN payments p ON o.order_id = p.order_id
+    GROUP BY c.customer_state, c.customer_id
+)
+
+SELECT *
+FROM (
+    SELECT 
+        customer_state,
+        customer_id,
+        revenue,
+        RANK() OVER (PARTITION BY customer_state ORDER BY revenue DESC) AS rank
+    FROM customer_revenue
+) ranked
+WHERE rank <= 3;
+
+- - TASK 11 Monthly growth % using windows function 
+WITH monthly AS (
+    SELECT 
+        CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120) AS month,
+        SUM(p.payment_value) AS revenue
+    FROM payments p
+    JOIN orders o 
+        ON p.order_id = o.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120)
+)
+
+SELECT 
+    month,
+    revenue,
+    LAG(revenue) OVER (ORDER BY month) AS prev_month_revenue,
+    ROUND(
+        (revenue - LAG(revenue) OVER (ORDER BY month)) * 100.0 
+        / LAG(revenue) OVER (ORDER BY month),
+    2) AS growth_pct
+FROM monthly
+ORDER BY month;
+- - TASK 12 Customer Segmentation 
+select o.customer_id,
+sum(p.payment_value) AS Customer_spent,
+CASE 
+WHEN sum(p.payment_value)>1000 THEN 'HIGH' 
+WHEN sum(p.payment_value) >500 THEN 'MEDIUM' 
+else 'LOW' 
+end AS    Segment 
+from Payments p 
+INNER JOIN Orders o ON p.order_id=o.order_id
+where order_status = 'delivered'
+group by o.customer_id 
+order by Customer_spent;
+
+- - TASK 13 Find month-over-month revenue growth and also identify which month had the highest growth
+ecommerce_analysis.sql
+
+-- ================================================
+-- Ecommerce Sales Analysis
+-- Author: Dnyaneshwar Tate
+-- Database: ecommerce_project | dbo.master_table
+-- Period: September 2016 - August 2018
+-- ================================================
+
+
+-- Task 1: Total revenue by product category
+SELECT
+    category_english,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY revenue DESC;
+
+
+-- Task 2: Monthly order volume trend
+SELECT
+    FORMAT(order_purchase_timestamp, 'yyyy-MM') AS Monthlyord,
+    COUNT(DISTINCT order_id) AS total_orders
+FROM dbo.master_table
+GROUP BY FORMAT(order_purchase_timestamp, 'yyyy-MM')
+ORDER BY Monthlyord ASC;
+
+
+-- Task 3: Top 10 cities by total revenue
+SELECT TOP 10
+    customer_city,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY customer_city
+ORDER BY revenue DESC;
+
+
+-- Task 4: Average freight vs average price by category
+SELECT
+    category_english,
+    AVG(price) AS avg_price,
+    AVG(freight_value) AS avg_freight,
+    ROUND((AVG(freight_value) / AVG(price)) * 100, 2) AS freight_pct
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY freight_pct DESC;
+
+
+-- Task 5: Revenue share % by category
+WITH category_revenue AS (
+    SELECT
+        category_english,
+        SUM(total_payment) AS revenue
+    FROM dbo.master_table
+    GROUP BY category_english
+)
+SELECT
+    category_english,
+    revenue,
+    SUM(revenue) OVER() AS total_revenue,
+    ROUND(revenue / SUM(revenue) OVER() * 100, 2) AS revenue_share_pct
+FROM category_revenue
+ORDER BY revenue_share_pct DESC;
+
+
+
+-- Task 6:customer rank  and running total revenue
+WITH custrank AS (
+    SELECT
+        customer_id,
+        SUM(total_payment) AS total_spent
+    FROM master_table
+    GROUP BY customer_id
+)
+
+SELECT
+    customer_id,
+    total_spent,
+    DENSE_RANK() OVER (ORDER BY total_spent DESC) AS spending_rank,
+    SUM(total_spent) OVER (ORDER BY total_spent DESC) AS running_total
+FROM custrank;
+
+-- Task 7:Above Average Categories
+
+WITH avgcategory AS (
+    SELECT
+        category_english,
+        AVG(total_payment) AS avg_ord_val
+    FROM master_table
+    GROUP BY category_english
+)
+
+SELECT
+    category_english,
+    avg_ord_val,
+    (SELECT AVG(total_payment) FROM master_table) AS overall_avg
+FROM avgcategory
+WHERE avg_ord_val > (SELECT AVG(total_payment) FROM master_table)
+AND category_english IS NOT NULL
+ORDER BY avg_ord_val DESC;
+
+- - TASK 8 : Top 5 Cities By Revenue 
+WITH cityrev AS (
+    SELECT
+        customer_city,
+        SUM(total_payment) AS city_revenue
+    FROM master_table
+    GROUP BY customer_city
+)
+
+SELECT TOP 5
+   customer_city,
+    city_revenue,
+    (SELECT SUM(total_payment) FROM master_table) AS total_revenue,
+    ROUND(city_revenue * 100.0 / (SELECT SUM(total_payment) FROM master_table), 2) AS revenue_share_pct
+FROM cityrev
+ORDER BY city_revenue DESC;
+
+- - TASK 9 : Above State Average Spenders
+WITH customer_spent AS (
+    SELECT
+        customer_id,
+        customer_state,
+        SUM(total_payment) AS cust_total_spent
+    FROM master_table
+    GROUP BY customer_id, customer_state
+),
+state_avg AS (
+    SELECT
+        customer_state,
+        AVG(cust_total_spent) AS avg_state_spent
+    FROM customer_spent
+    GROUP BY customer_state
+)
+
+SELECT
+    cs.customer_id,
+    cs.customer_state,
+    cs.cust_total_spent,
+    sa.avg_state_spent
+FROM customer_spent cs
+INNER JOIN state_avg sa ON cs.customer_state = sa.customer_state
+WHERE cs.cust_total_spent > sa.avg_state_spent
+ORDER BY cs.customer_state, cs.cust_total_spent DESC;
+
+- - TASK 10 TO 3 customers per state 
+WITH customer_revenue AS (
+    SELECT 
+        c.customer_state,
+        c.customer_id,
+        SUM(p.payment_value) AS revenue
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN payments p ON o.order_id = p.order_id
+    GROUP BY c.customer_state, c.customer_id
+)
+
+SELECT *
+FROM (
+    SELECT 
+        customer_state,
+        customer_id,
+        revenue,
+        RANK() OVER (PARTITION BY customer_state ORDER BY revenue DESC) AS rank
+    FROM customer_revenue
+) ranked
+WHERE rank <= 3;
+
+- - TASK 11 Monthly growth % using windows function 
+WITH monthly AS (
+    SELECT 
+        CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120) AS month,
+        SUM(p.payment_value) AS revenue
+    FROM payments p
+    JOIN orders o 
+        ON p.order_id = o.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120)
+)
+
+SELECT 
+    month,
+    revenue,
+    LAG(revenue) OVER (ORDER BY month) AS prev_month_revenue,
+    ROUND(
+        (revenue - LAG(revenue) OVER (ORDER BY month)) * 100.0 
+        / LAG(revenue) OVER (ORDER BY month),
+    2) AS growth_pct
+FROM monthly
+ORDER BY month;
+- - TASK 12 Customer Segmentation 
+select o.customer_id,
+sum(p.payment_value) AS Customer_spent,
+CASE 
+WHEN sum(p.payment_value)>1000 THEN 'HIGH' 
+WHEN sum(p.payment_value) >500 THEN 'MEDIUM' 
+else 'LOW' 
+end AS    Segment 
+from Payments p 
+INNER JOIN Orders o ON p.order_id=o.order_id
+where order_status = 'delivered'
+group by o.customer_id 
+order by Customer_spent;
+
+- - TASK 13 Find month-over-month revenue growth and also identify which month had the highest growth
+ecommerce_analysis.sql
+
+-- ================================================
+-- Ecommerce Sales Analysis
+-- Author: Dnyaneshwar Tate
+-- Database: ecommerce_project | dbo.master_table
+-- Period: September 2016 - August 2018
+-- ================================================
+
+
+-- Task 1: Total revenue by product category
+SELECT
+    category_english,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY revenue DESC;
+
+
+-- Task 2: Monthly order volume trend
+SELECT
+    FORMAT(order_purchase_timestamp, 'yyyy-MM') AS Monthlyord,
+    COUNT(DISTINCT order_id) AS total_orders
+FROM dbo.master_table
+GROUP BY FORMAT(order_purchase_timestamp, 'yyyy-MM')
+ORDER BY Monthlyord ASC;
+
+
+-- Task 3: Top 10 cities by total revenue
+SELECT TOP 10
+    customer_city,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY customer_city
+ORDER BY revenue DESC;
+
+
+-- Task 4: Average freight vs average price by category
+SELECT
+    category_english,
+    AVG(price) AS avg_price,
+    AVG(freight_value) AS avg_freight,
+    ROUND((AVG(freight_value) / AVG(price)) * 100, 2) AS freight_pct
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY freight_pct DESC;
+
+
+-- Task 5: Revenue share % by category
+WITH category_revenue AS (
+    SELECT
+        category_english,
+        SUM(total_payment) AS revenue
+    FROM dbo.master_table
+    GROUP BY category_english
+)
+SELECT
+    category_english,
+    revenue,
+    SUM(revenue) OVER() AS total_revenue,
+    ROUND(revenue / SUM(revenue) OVER() * 100, 2) AS revenue_share_pct
+FROM category_revenue
+ORDER BY revenue_share_pct DESC;
+
+
+
+-- Task 6:customer rank  and running total revenue
+WITH custrank AS (
+    SELECT
+        customer_id,
+        SUM(total_payment) AS total_spent
+    FROM master_table
+    GROUP BY customer_id
+)
+
+SELECT
+    customer_id,
+    total_spent,
+    DENSE_RANK() OVER (ORDER BY total_spent DESC) AS spending_rank,
+    SUM(total_spent) OVER (ORDER BY total_spent DESC) AS running_total
+FROM custrank;
+
+-- Task 7:Above Average Categories
+
+WITH avgcategory AS (
+    SELECT
+        category_english,
+        AVG(total_payment) AS avg_ord_val
+    FROM master_table
+    GROUP BY category_english
+)
+
+SELECT
+    category_english,
+    avg_ord_val,
+    (SELECT AVG(total_payment) FROM master_table) AS overall_avg
+FROM avgcategory
+WHERE avg_ord_val > (SELECT AVG(total_payment) FROM master_table)
+AND category_english IS NOT NULL
+ORDER BY avg_ord_val DESC;
+
+- - TASK 8 : Top 5 Cities By Revenue 
+WITH cityrev AS (
+    SELECT
+        customer_city,
+        SUM(total_payment) AS city_revenue
+    FROM master_table
+    GROUP BY customer_city
+)
+
+SELECT TOP 5
+   customer_city,
+    city_revenue,
+    (SELECT SUM(total_payment) FROM master_table) AS total_revenue,
+    ROUND(city_revenue * 100.0 / (SELECT SUM(total_payment) FROM master_table), 2) AS revenue_share_pct
+FROM cityrev
+ORDER BY city_revenue DESC;
+
+- - TASK 9 : Above State Average Spenders
+WITH customer_spent AS (
+    SELECT
+        customer_id,
+        customer_state,
+        SUM(total_payment) AS cust_total_spent
+    FROM master_table
+    GROUP BY customer_id, customer_state
+),
+state_avg AS (
+    SELECT
+        customer_state,
+        AVG(cust_total_spent) AS avg_state_spent
+    FROM customer_spent
+    GROUP BY customer_state
+)
+
+SELECT
+    cs.customer_id,
+    cs.customer_state,
+    cs.cust_total_spent,
+    sa.avg_state_spent
+FROM customer_spent cs
+INNER JOIN state_avg sa ON cs.customer_state = sa.customer_state
+WHERE cs.cust_total_spent > sa.avg_state_spent
+ORDER BY cs.customer_state, cs.cust_total_spent DESC;
+
+- - TASK 10 TO 3 customers per state 
+WITH customer_revenue AS (
+    SELECT 
+        c.customer_state,
+        c.customer_id,
+        SUM(p.payment_value) AS revenue
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN payments p ON o.order_id = p.order_id
+    GROUP BY c.customer_state, c.customer_id
+)
+
+SELECT *
+FROM (
+    SELECT 
+        customer_state,
+        customer_id,
+        revenue,
+        RANK() OVER (PARTITION BY customer_state ORDER BY revenue DESC) AS rank
+    FROM customer_revenue
+) ranked
+WHERE rank <= 3;
+
+- - TASK 11 Monthly growth % using windows function 
+WITH monthly AS (
+    SELECT 
+        CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120) AS month,
+        SUM(p.payment_value) AS revenue
+    FROM payments p
+    JOIN orders o 
+        ON p.order_id = o.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120)
+)
+
+SELECT 
+    month,
+    revenue,
+    LAG(revenue) OVER (ORDER BY month) AS prev_month_revenue,
+    ROUND(
+        (revenue - LAG(revenue) OVER (ORDER BY month)) * 100.0 
+        / LAG(revenue) OVER (ORDER BY month),
+    2) AS growth_pct
+FROM monthly
+ORDER BY month;
+- - TASK 12 Customer Segmentation 
+select o.customer_id,
+sum(p.payment_value) AS Customer_spent,
+CASE 
+WHEN sum(p.payment_value)>1000 THEN 'HIGH' 
+WHEN sum(p.payment_value) >500 THEN 'MEDIUM' 
+else 'LOW' 
+end AS    Segment 
+from Payments p 
+INNER JOIN Orders o ON p.order_id=o.order_id
+where order_status = 'delivered'
+group by o.customer_id 
+order by Customer_spent;
+
+- - TASK 13 Find month-over-month revenue growth and also identify which month had the highest growth
+ecommerce_analysis.sql
+
+-- ================================================
+-- Ecommerce Sales Analysis
+-- Author: Dnyaneshwar Tate
+-- Database: ecommerce_project | dbo.master_table
+-- Period: September 2016 - August 2018
+-- ================================================
+
+
+-- Task 1: Total revenue by product category
+SELECT
+    category_english,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY revenue DESC;
+
+
+-- Task 2: Monthly order volume trend
+SELECT
+    FORMAT(order_purchase_timestamp, 'yyyy-MM') AS Monthlyord,
+    COUNT(DISTINCT order_id) AS total_orders
+FROM dbo.master_table
+GROUP BY FORMAT(order_purchase_timestamp, 'yyyy-MM')
+ORDER BY Monthlyord ASC;
+
+
+-- Task 3: Top 10 cities by total revenue
+SELECT TOP 10
+    customer_city,
+    SUM(total_payment) AS revenue
+FROM dbo.master_table
+GROUP BY customer_city
+ORDER BY revenue DESC;
+
+
+-- Task 4: Average freight vs average price by category
+SELECT
+    category_english,
+    AVG(price) AS avg_price,
+    AVG(freight_value) AS avg_freight,
+    ROUND((AVG(freight_value) / AVG(price)) * 100, 2) AS freight_pct
+FROM dbo.master_table
+GROUP BY category_english
+ORDER BY freight_pct DESC;
+
+
+-- Task 5: Revenue share % by category
+WITH category_revenue AS (
+    SELECT
+        category_english,
+        SUM(total_payment) AS revenue
+    FROM dbo.master_table
+    GROUP BY category_english
+)
+SELECT
+    category_english,
+    revenue,
+    SUM(revenue) OVER() AS total_revenue,
+    ROUND(revenue / SUM(revenue) OVER() * 100, 2) AS revenue_share_pct
+FROM category_revenue
+ORDER BY revenue_share_pct DESC;
+
+
+
+-- Task 6:customer rank  and running total revenue
+WITH custrank AS (
+    SELECT
+        customer_id,
+        SUM(total_payment) AS total_spent
+    FROM master_table
+    GROUP BY customer_id
+)
+
+SELECT
+    customer_id,
+    total_spent,
+    DENSE_RANK() OVER (ORDER BY total_spent DESC) AS spending_rank,
+    SUM(total_spent) OVER (ORDER BY total_spent DESC) AS running_total
+FROM custrank;
+
+-- Task 7:Above Average Categories
+
+WITH avgcategory AS (
+    SELECT
+        category_english,
+        AVG(total_payment) AS avg_ord_val
+    FROM master_table
+    GROUP BY category_english
+)
+
+SELECT
+    category_english,
+    avg_ord_val,
+    (SELECT AVG(total_payment) FROM master_table) AS overall_avg
+FROM avgcategory
+WHERE avg_ord_val > (SELECT AVG(total_payment) FROM master_table)
+AND category_english IS NOT NULL
+ORDER BY avg_ord_val DESC;
+
+- - TASK 8 : Top 5 Cities By Revenue 
+WITH cityrev AS (
+    SELECT
+        customer_city,
+        SUM(total_payment) AS city_revenue
+    FROM master_table
+    GROUP BY customer_city
+)
+
+SELECT TOP 5
+   customer_city,
+    city_revenue,
+    (SELECT SUM(total_payment) FROM master_table) AS total_revenue,
+    ROUND(city_revenue * 100.0 / (SELECT SUM(total_payment) FROM master_table), 2) AS revenue_share_pct
+FROM cityrev
+ORDER BY city_revenue DESC;
+
+- - TASK 9 : Above State Average Spenders
+WITH customer_spent AS (
+    SELECT
+        customer_id,
+        customer_state,
+        SUM(total_payment) AS cust_total_spent
+    FROM master_table
+    GROUP BY customer_id, customer_state
+),
+state_avg AS (
+    SELECT
+        customer_state,
+        AVG(cust_total_spent) AS avg_state_spent
+    FROM customer_spent
+    GROUP BY customer_state
+)
+
+SELECT
+    cs.customer_id,
+    cs.customer_state,
+    cs.cust_total_spent,
+    sa.avg_state_spent
+FROM customer_spent cs
+INNER JOIN state_avg sa ON cs.customer_state = sa.customer_state
+WHERE cs.cust_total_spent > sa.avg_state_spent
+ORDER BY cs.customer_state, cs.cust_total_spent DESC;
+
+- - TASK 10 TO 3 customers per state 
+WITH customer_revenue AS (
+    SELECT 
+        c.customer_state,
+        c.customer_id,
+        SUM(p.payment_value) AS revenue
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN payments p ON o.order_id = p.order_id
+    GROUP BY c.customer_state, c.customer_id
+)
+
+SELECT *
+FROM (
+    SELECT 
+        customer_state,
+        customer_id,
+        revenue,
+        RANK() OVER (PARTITION BY customer_state ORDER BY revenue DESC) AS rank
+    FROM customer_revenue
+) ranked
+WHERE rank <= 3;
+
+- - TASK 11 Monthly growth % using windows function 
+WITH monthly AS (
+    SELECT 
+        CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120) AS month,
+        SUM(p.payment_value) AS revenue
+    FROM payments p
+    JOIN orders o 
+        ON p.order_id = o.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY CONVERT(VARCHAR(7), CAST(o.order_purchase_timestamp AS DATETIME), 120)
+)
+
+SELECT 
+    month,
+    revenue,
+    LAG(revenue) OVER (ORDER BY month) AS prev_month_revenue,
+    ROUND(
+        (revenue - LAG(revenue) OVER (ORDER BY month)) * 100.0 
+        / LAG(revenue) OVER (ORDER BY month),
+    2) AS growth_pct
+FROM monthly
+ORDER BY month;
+- - TASK 12 Customer Segmentation 
+select o.customer_id,
+sum(p.payment_value) AS Customer_spent,
+CASE 
+WHEN sum(p.payment_value)>1000 THEN 'HIGH' 
+WHEN sum(p.payment_value) >500 THEN 'MEDIUM' 
+else 'LOW' 
+end AS    Segment 
+from Payments p 
+INNER JOIN Orders o ON p.order_id=o.order_id
+where order_status = 'delivered'
+group by o.customer_id 
+order by Customer_spent;
+
+- - TASK 13 Find month-over-month revenue growth and also identify which month had the highest growth
+WITH month_rev AS (
+    SELECT 
+        FORMAT(CAST(o.order_purchase_timestamp AS DATE), 'yyyy-MM') AS month,
+        SUM(p.payment_value) AS revenue
+    FROM orders o
+    JOIN payments p 
+        ON o.order_id = p.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY FORMAT(CAST(o.order_purchase_timestamp AS DATE), 'yyyy-MM')
+),
+
+growth_calc AS (
+    SELECT 
+        month,
+        revenue,
+        LAG(revenue) OVER (ORDER BY month) AS prev_revenue
+    FROM month_rev
+)
+
+SELECT 
+    month,
+    revenue,
+    prev_revenue,
+    ROUND(
+        (revenue - prev_revenue) * 100.0 / prev_revenue,
+    2) AS growth_pct,
+    RANK() OVER (ORDER BY 
+        (revenue - prev_revenue) DESC
+    ) AS rank_growth
+FROM growth_calc
+ORDER BY month;
+
+- - TASK 13 Customer Retention
+WITH first_order AS (
+    SELECT 
+        customer_id,
+        MIN(order_purchase_timestamp) AS first_order_date
+    FROM orders
+    GROUP BY customer_id
+),
+repeat_customers AS (
+    SELECT 
+        o.customer_id,
+        COUNT(DISTINCT o.order_id) AS total_orders
+    FROM orders o
+    GROUP BY o.customer_id
+)
+SELECT 
+    COUNT(*) AS total_customers,
+    SUM(CASE WHEN total_orders > 1 THEN 1 ELSE 0 END) AS repeat_customers,
+    ROUND(
+        SUM(CASE WHEN total_orders > 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 
+        2
+    ) AS retention_rate
+FROM repeat_customers;
+
+- - Delivery Perofrmnace Anaylysis 
+SELECT 
+    COUNT(*) AS total_orders,
+    SUM(CASE 
+        WHEN order_delivered_customer_date <= order_estimated_delivery_date 
+        THEN 1 ELSE 0 
+    END) AS on_time_orders,
+    ROUND(
+        SUM(CASE 
+            WHEN order_delivered_customer_date <= order_estimated_delivery_date 
+            THEN 1 ELSE 0 
+        END) * 100.0 / COUNT(*), 
+        2
+    ) AS on_time_delivery_rate
+FROM orders
+WHERE order_status = 'delivered';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
