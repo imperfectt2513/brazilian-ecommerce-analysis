@@ -72,7 +72,7 @@ Across all Brazilian states, a consistent segment of customers spends 4x–10x h
 ## 📈 Dashboard Preview
 
 > Excel KPI dashboard with 4 pivot charts and slicers for category, city, and state-level filtering.
-> *(Add screenshot here)*
+> ![Dashboard](ecommerce_sales_dashboard.png.png)
 
 ---
 
