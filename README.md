@@ -93,4 +93,4 @@ Across all Brazilian states, a consistent segment of customers spends 4x–10x h
 ## 👤 Author
 
 **Dnyaneshwar Tate** | B.Tech Computer Science | 2026  
-[LinkedIn](https://linkedin.com/in/dnyaneshwartate) · [GitHub](https://github.com/imperfectt2513)
+[LinkedIn](https://linkedin.com/in/dnyaneshwartate) · [GitHub](https://github.com/imperfectt45)
